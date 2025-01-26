@@ -1,5 +1,5 @@
 # controller.py 
- 
+
 import sys 
 from PySide6.QtWidgets import QApplication, QMessageBox 
 from PySide6.QtCore import QThread, Signal, QObject
@@ -227,7 +227,7 @@ class AudiobookController:
         self.view.export_audiobook_requested.connect(self.export_audiobook)
         self.view.generation_settings_changed.connect(self.save_generation_settings)
         self.view.load_existing_audiobook_requested.connect(self.load_existing_audiobook)
-        self.view.load_text_file_requested.connect(self.load_text_file)
+        self.view.load_text_file_requested.connect(self.load_text_file_queue)
         # self.view.load_tts_requested.connect(self.load_tts_engine)
         self.view.pause_audio_requested.connect(self.pause_audio)
         self.view.play_all_from_selected_requested.connect(self.play_all_from_selected)
@@ -301,6 +301,7 @@ class AudiobookController:
         self.worker.sentence_generated_signal.connect(self.on_sentence_generated)
         self.worker.start()
         self.on_generation_started()  # Call this method after starting the worker
+    
     def create_audiobook_directory(self):
         book_name = self.view.get_book_name()
         
@@ -308,7 +309,11 @@ class AudiobookController:
             self.view.show_message("Error", "Please enter a book name before proceeding.", icon=QMessageBox.Warning)
             return
         directory_path = os.path.join("audiobooks", book_name)
-        self.current_audiobook_directory = directory_path  # Add this line
+        print("Directory path={}\n\n".format(directory_path))
+        if len(self.view.fileQueue.queue) > 1: 
+            directory_path = os.path.join(directory_path, self.view.fileQueue.get_audiobook_subdirectory())
+            print("Updated directory path={}\n\n".format(directory_path))
+        self.current_audiobook_directory = directory_path
         self.view.set_audiobook_label(book_name)
         if os.path.exists(self.current_audiobook_directory):
             overwrite = self.view.ask_question(
@@ -370,6 +375,18 @@ class AudiobookController:
             self.view.show_message("Success", f"Combined audiobook saved as {output_filename}", icon=QMessageBox.Information)
         except FileNotFoundError as e:
             self.view.show_message("Error", str(e), icon=QMessageBox.Warning)
+            
+    def export_current_audiobook(self):
+        directory_path = self.current_audiobook_directory
+        if not directory_path:
+            return  # Exit the function if no directory was selected
+
+        pause_duration = self.view.get_pause_between_sentences()
+        try:
+            output_filename = self.model.export_audiobook(directory_path, pause_duration)
+            # self.view.show_message("Success", f"Combined audiobook saved as {output_filename}", icon=QMessageBox.Information)
+        except FileNotFoundError as e:
+            self.view.show_message("Error", str(e), icon=QMessageBox.Warning)
     def extract_text(self, idx: int, concat_sentences:bool, length_search_text: int) -> str:
         text = self.model.text_audio_map[str(idx)]['sentence']
         if concat_sentences:
@@ -418,7 +435,8 @@ class AudiobookController:
             self.setup_interface(directory_path)
         except Exception as e:
             self.view.show_message("Error", f"An error occurred: {str(e)}", icon=QMessageBox.Warning)
-    def load_text_file(self):
+            
+    def load_text_file_queue(self):
         if not self.check_and_reset_for_new_text_file('Load New Text File'):
             return
         book_name = self.view.get_book_name()
@@ -426,12 +444,26 @@ class AudiobookController:
             self.view.show_message("Error", "Please enter a book name before proceeding.", icon=QMessageBox.Warning)
             return
 
-        filepath = self.view.get_open_file_name(
+        filepaths = self.view.get_open_file_names(
             "Select Text File", "", "Text Files (*.txt);;All Files (*)"
         )
-        if filepath:
-            self.model.filepath = filepath
+        filepaths = sorted(filepaths)
+        self.process_text_file_queue(filepaths[0], filepaths)
+        
+    def process_text_file_queue(self, active_filepath, filepaths, partial_reset=False):
+        if partial_reset:
+            self.model.reset_file()
+            self.current_audiobook_directory = None
+            self.is_generating = False
+            self.view.clear_table()
+
+        if filepaths:
+            self.model.filepath = active_filepath
+            filepath = active_filepath
+            
+            self.view.fileQueue.updateView(self.model.filepath, filepaths)
             sentences = self.model.load_sentences(filepath)
+            
             if sentences:
                 self.model.create_audio_text_map("", sentences)
                 if not self.current_audiobook_directory:
@@ -444,6 +476,7 @@ class AudiobookController:
                 self.model.save_text_audio_map(self.current_audiobook_directory)
         else:
             pass
+        
 
     def on_audio_finished(self):
         if self.playing_sequence:
@@ -454,6 +487,13 @@ class AudiobookController:
         self.view.stop_generation_button.setEnabled(False)
         self.view.enable_buttons()
         self.update_table_with_sentences()
+        next_filepath = self.view.fileQueue.get_next_file_path()
+        
+        if next_filepath and self.model.all_generated():
+            self.export_current_audiobook()
+            self.process_text_file_queue(next_filepath, self.view.fileQueue.queue, partial_reset=True)
+            self.start_generation()
+        
     def on_generation_started(self):
         self.is_generating = True
         self.view.on_enable_stop_button()
@@ -467,11 +507,8 @@ class AudiobookController:
 
         # Update the table row's background color to match the new speaker
         self.view.set_row_speaker_color(int(map_key), speaker_id)
-
-        book_name = self.view.audiobook_label.text()
-        directory_path = os.path.join("audiobooks", book_name)
         # Save the updated map back to the file
-        self.model.save_text_audio_map(directory_path)
+        self.model.save_text_audio_map(self.current_audiobook_directory)
         print("Regeneration complete")
     def on_s2s_engine_changed(self, s2s_engine_name):
         # You can perform additional actions here if needed
@@ -512,7 +549,7 @@ class AudiobookController:
         self.playing_sequence = True
         self.play_next_audio_in_sequence()
     def play_next_audio_in_sequence(self):
-        while True:
+        while self.playing_sequence:
             map_key = str(self.current_audio_index)
             if map_key in self.model.text_audio_map and self.model.text_audio_map[map_key]["generated"]:
                 audio_path = self.model.text_audio_map[map_key]['audio_path']
@@ -530,6 +567,7 @@ class AudiobookController:
                 else:
                     self.current_audio_index += 1
     def play_selected_audio(self):
+        self.playing_sequence = False
         selected_row = self.view.get_selected_table_row()
         if selected_row == -1:
             self.view.show_message("Error", "Choose a sentence to play audio for", icon=QMessageBox.Warning)
@@ -556,7 +594,7 @@ class AudiobookController:
         
         # **Set Default TTS Engine Selection in the Controller**
         if self.view.tts_engine_combo.count() > 0:
-            self.view.tts_engine_combo.setCurrentIndex(0)
+            self.view.tts_engine_combo.setCurrentIndex(tts_engines.index("F5TTS"))
     def popup_load_audiobook(self):
         self.view.show_message("Error", "An audiobook should be loaded first", icon=QMessageBox.Warning)
     
@@ -928,3 +966,4 @@ class AudiobookController:
 if __name__ == '__main__':
     
     controller = AudiobookController()
+

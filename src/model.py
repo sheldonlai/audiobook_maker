@@ -159,6 +159,11 @@ class AudiobookModel:
                     filtered_list.append(line)
             i += 1
         return filtered_list
+    def all_generated(self):
+        total_sentences = len(self.text_audio_map.values())
+        generated_count = sum(1 for entry in self.text_audio_map.values() if entry['generated'])
+        return generated_count == total_sentences
+        
     def generate_audio_for_sentence_threaded(self, directory_path, is_continue, is_regen_only, report_progress_callback, sentence_generated_callback, should_stop_callback=None):
         self.load_generation_settings(directory_path)
         self.load_text_audio_map(directory_path)
@@ -194,7 +199,7 @@ class AudiobookModel:
             else:
                 s2s_validated = False
             for idx, entry in entries:
-                if should_stop_callback():
+                if should_stop_callback is not None and should_stop_callback():
                     print("Generation stopped by user")
                     return
                 if is_continue and entry['generated']:
@@ -243,7 +248,10 @@ class AudiobookModel:
         s2s_config = self.load_config(os.path.join('configs', 's2s_config.json'))
         return [engine['name'] for engine in s2s_config.get('s2s_engines', [])]
     def get_speaker_name(self, speaker_id):
-        speaker_name = self.speakers[speaker_id]['name']
+        if speaker_id in self.speakers:
+            speaker_name = self.speakers[speaker_id]['name']
+        else:
+            speaker_name = self.speakers[str(speaker_id)]['name']
         return speaker_name
     def get_tts_engines(self):
         tts_config = self.load_config(os.path.join('configs', 'tts_config.json'))
@@ -320,6 +328,7 @@ class AudiobookModel:
         if os.path.exists('settings.json'):
             with open('settings.json', 'r') as json_file:
                 self.settings = json.load(json_file)
+                print("loaded settings:\n{}\n\n".format(self.settings))
                 return self.settings
         return {}
     def load_text_audio_map(self, directory_path):
@@ -398,6 +407,12 @@ class AudiobookModel:
         self.current_voice_parameters = None
         self.tts_engine = None
         self.filepath = None
+        
+    def reset_file(self):
+        self.text_audio_map.clear()
+        self.current_sentence_idx = 0
+        self.filepath = None
+        
     def reset_regen_in_text_audio_map(self):
         for idx_str in self.text_audio_map:
             self.text_audio_map[idx_str]["regen"] = False

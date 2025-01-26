@@ -271,7 +271,7 @@ def load_with_f5tts(**kwargs):
         model_local_path=model_file_root,
         duration_model=duration_model,
         duration_model_path=duration_model_path,
-        device="cuda"
+        device="cuda:0"
     )
     return model
 

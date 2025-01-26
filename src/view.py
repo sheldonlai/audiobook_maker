@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QColor
 
+from widget.text_file_queue import TextFileQueue
+
 class SpeakerManagementDialog(QDialog):
     def __init__(self, parent=None, speakers=None):
         super().__init__(parent)
@@ -446,7 +448,7 @@ class WordReplacerView(QMainWindow):
         #Sort word list alphabetically
         self.word_widget.sortItems(0, order=Qt.AscendingOrder)
         #self.SortListS.emit()
- 
+
     def test_repl(self):
         #Test word to hear how it will be pronounced.
         selected_row = self.word_widget.currentRow()
@@ -670,7 +672,11 @@ class AudiobookMakerView(QMainWindow):
         self.audiobook_label_layout.addWidget(self.delete_button)
         
         right_layout.addLayout(self.audiobook_label_layout)
-
+        
+        # Table to hold the text file queue        
+        self.fileQueue = TextFileQueue()
+        
+        
         # Table that hold Audiobook sentences, etc.
         self.tableWidget = QTableWidget(self)
         self.tableWidget.setColumnCount(4)
@@ -851,6 +857,7 @@ class AudiobookMakerView(QMainWindow):
         left_layout.addWidget(self.continue_audiobook_button)
         left_layout.addWidget(self.progress_bar)
         left_layout.addLayout(self.export_pause_layout)
+        left_layout.addLayout(self.fileQueue.layout)
         left_layout.addStretch(1)  # Add stretchable empty space
         right_layout.addLayout(right_inner_layout)
         main_content_layout.addLayout(right_layout)
@@ -1213,6 +1220,11 @@ class AudiobookMakerView(QMainWindow):
         options |= QFileDialog.ReadOnly
         filepath, _ = QFileDialog.getOpenFileName(self, title, directory, filter, options=options)
         return filepath
+    def get_open_file_names(self, title, directory='', filter=''):
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        filepaths, _ = QFileDialog.getOpenFileNames(self, title, directory, filter, options=options)
+        return filepaths
     def get_pause_between_sentences(self):
         return self.export_pause_slider.value() / 10.0
     def get_search_start(self):
@@ -1524,7 +1536,7 @@ class AudiobookMakerView(QMainWindow):
         self.update_tts_options(self.get_tts_engine())
         self.s2s_engine_combo.setCurrentIndex(0)
         self.update_s2s_options(self.get_s2s_engine())
-        self.use_s2s_checkbox.setChecked(False)
+        self.use_s2s_checkbox.setChecked(True)
         self.export_pause_slider.setValue(0)
         self.updatePauseLabel(0)
     def reset_settings_to_default(self):
@@ -1545,7 +1557,6 @@ class AudiobookMakerView(QMainWindow):
         super().resizeEvent(event)  # Call the superclass resize event method
     def resize_table(self):
         self.tableWidget.resizeRowsToContents()
-    
     def select_table_row(self, row):
         self.tableWidget.selectRow(row)
     def set_audiobook_label(self, text):
@@ -1573,7 +1584,7 @@ class AudiobookMakerView(QMainWindow):
         item = self.tableWidget.item(row, 0) # Explicit sentence column
         if item:
             item.setBackground(color)
-        self.tableWidget.blockSignals(False)
+        self.tableWidget.blockSignals(False)            
     def set_s2s_parameters(self, settings):
         s2s_engine = self.get_s2s_engine()
         engine_config = next(
