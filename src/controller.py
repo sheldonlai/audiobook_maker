@@ -1,6 +1,7 @@
 # controller.py 
 
-import sys 
+import sys
+from unittest import skip 
 from PySide6.QtWidgets import QApplication, QMessageBox 
 from PySide6.QtCore import QThread, Signal, QObject
 import os
@@ -165,9 +166,12 @@ class AudiobookController:
                 # User chose not to create the directory; do nothing or handle accordingly
                 return
         
+        # sentence, row_position, speaker_id, speaker_name, regen_state, is_generated = self.model.get_map_keys_and_values(idx_str)
         # Audiobook directory exists; assign current speaker to selected sentences
         speaker_id, speaker_name = self.view.get_current_speaker_attributes()
-        self.view.assign_speaker_to_selected(speaker_id, speaker_name)
+        
+        # TODO -- view needs to access model to see if the row is generated or not
+        self.view.assign_speaker_to_selected(speaker_id, speaker_name, self.model.text_audio_map)
         # Update model accordingly
         selected_rows = self.view.tableWidget.selectionModel().selectedRows(0)
         for index in selected_rows:
@@ -193,10 +197,10 @@ class AudiobookController:
                 return False
 
             # Reset model and view
-            self.model.reset()
+            self.model.reset(skip_reset_voice_setting=True)
             self.current_audiobook_directory = None
             self.is_generating = False
-            self.view.reset()
+            self.view.reset(skip_reset_speech_options=True)
             return True
         else:
             return True
@@ -487,10 +491,11 @@ class AudiobookController:
         self.view.stop_generation_button.setEnabled(False)
         self.view.enable_buttons()
         self.update_table_with_sentences()
-        next_filepath = self.view.fileQueue.get_next_file_path()
         
-        if next_filepath and self.model.all_generated():
+        next_filepath = self.view.fileQueue.get_next_file_path()
+        if self.model.all_generated():
             self.export_current_audiobook()
+        if next_filepath and self.model.all_generated():
             self.process_text_file_queue(next_filepath, self.view.fileQueue.queue, partial_reset=True)
             self.start_generation()
         
@@ -504,9 +509,10 @@ class AudiobookController:
         # Update the text_audio_map with the new audio path and speaker_id
         self.model.text_audio_map[map_key]['audio_path'] = new_audio_path
         self.model.text_audio_map[map_key]['speaker_id'] = speaker_id
+        self.model.text_audio_map[map_key]['generated'] = True
 
         # Update the table row's background color to match the new speaker
-        self.view.set_row_speaker_color(int(map_key), speaker_id)
+        self.view.set_row_speaker_color(int(map_key), speaker_id, is_generated=True)
         # Save the updated map back to the file
         self.model.save_text_audio_map(self.current_audiobook_directory)
         print("Regeneration complete")
@@ -526,7 +532,7 @@ class AudiobookController:
         item = self.model.text_audio_map[str(row_position)]
         speaker_id = item.get('speaker_id', 1)
         speaker_name = self.model.get_speaker_name(speaker_id)
-        self.view.add_table_item(row_position, sentence, speaker_name)
+        self.view.add_table_item(row_position, sentence, speaker_name, is_generated=True)
         # self.view.resize_table()
     def on_test_word_finished(self, audio_path):
         self.view.play_audio(audio_path)
@@ -594,7 +600,7 @@ class AudiobookController:
         
         # **Set Default TTS Engine Selection in the Controller**
         if self.view.tts_engine_combo.count() > 0:
-            self.view.tts_engine_combo.setCurrentIndex(tts_engines.index("F5TTS"))
+            self.view.tts_engine_combo.setCurrentIndex(tts_engines.index("Tortoise"))
     def popup_load_audiobook(self):
         self.view.show_message("Error", "An audiobook should be loaded first", icon=QMessageBox.Warning)
     
@@ -899,9 +905,9 @@ class AudiobookController:
         total_sentences = len(self.model.text_audio_map)
         self.view.tableWidget.setRowCount(total_sentences)  # Set the total number of rows upfront
         for idx_str in sorted(self.model.text_audio_map.keys(), key=lambda x: int(x)):
-            sentence, row_position, speaker_id, speaker_name, regen_state = self.model.get_map_keys_and_values(idx_str)
-            self.view.add_table_item(row_position, sentence, speaker_name, regen_state)
-            self.view.set_row_speaker_color(row_position, speaker_id)
+            sentence, row_position, speaker_id, speaker_name, regen_state, is_generated = self.model.get_map_keys_and_values(idx_str)
+            self.view.add_table_item(row_position, sentence, speaker_name, regen_state, is_generated)
+            self.view.set_row_speaker_color(row_position, speaker_id, is_generated)
         self.view.resize_table()
 
     def test_single_word(self, chosen_word, speaker):

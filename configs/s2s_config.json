@@ -46,7 +46,8 @@
             "type": "combobox",
             "function": "get_combobox_items",
             "look_for": "custom",
-            "custom_options": ["0:None", "40000:v1 Models", "48000:v2 Models"]
+            "custom_options": ["0:None", "40000:v1 Models", "48000:v2 Models"],
+            "default": "40000:v1 Models"
           },
           {
             "label": "Volume Increase",
@@ -54,7 +55,7 @@
             "type": "slider",
             "min": 0,
             "max": 100,
-            "default": 50,
+            "default": 70,
             "step": 100
           },
           {

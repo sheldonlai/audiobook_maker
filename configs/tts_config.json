@@ -41,7 +41,7 @@
                     "function": "get_combobox_items",
                     "folder_path": "./voices",
                     "look_for": "folders",
-                    "file_filter": null
+                    "file_filter": "*"
                 },
                 {
                     "label":"Seed (-1 is random)",
@@ -70,7 +70,8 @@
                 {
                     "label": "Use DeepSpeed",
                     "type": "checkbox",
-                    "attribute": "use_deepspeed"
+                    "attribute": "use_deepspeed",
+                    "default": true
                 },
                 {
                     "label": "Use HiFi-GAN",
@@ -246,7 +247,7 @@
                     "attribute": "f5tts_speed",
                     "min": 1,
                     "max": 200,
-                    "default": 100,
+                    "default": 130,
                     "step": 100
                 },
                 {
