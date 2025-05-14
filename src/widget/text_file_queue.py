@@ -44,7 +44,8 @@ class TextFileQueue(QWidget):
         self.queue_widget.setRowCount(0)
         self.queue = []
         self.auto_forward_checkbox.setChecked(True)
-        self.auto_export_checkboxself.auto_forward_checkbox.setChecked(True).setChecked(True)
+        self.auto_export_checkbox.setChecked(True)
+        self.auto_forward_checkbox.setChecked(True)
 
     def updateView(self, active_file_path: str, file_queue: List[str]) -> None:
         self.reset_widget()
@@ -82,7 +83,7 @@ class TextFileQueue(QWidget):
             return None  # x is the last element
 
     def is_auto_export_audiobook_on(self) -> bool:
-        returnself.auto_export_checkbox.isChecked()
+        return self.auto_export_checkbox.isChecked()
 
     def __on_auto_forward_checkbox_changed(self, state):
         pass

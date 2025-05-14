@@ -49,7 +49,7 @@
                     "attribute": "tortoise_seed",
                     "min" : -1,
                     "max" : 9999999,
-                    "default": -1
+                    "default": 3000
                 },
                 {
                     "label": "Number Samples to Choose From",

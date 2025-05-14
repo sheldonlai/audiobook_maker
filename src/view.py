@@ -772,6 +772,9 @@ class AudiobookMakerView(QMainWindow):
         self.tableWidget.setColumnWidth(2, 100)  # Regen
         self.tableWidget.setColumnWidth(3, 100)  # Delete
         self.tableWidget.setContextMenuPolicy(Qt.CustomContextMenu)
+        
+        # Table to hold the text file queue
+        self.fileQueue = TextFileQueue()
 
         # QWidgetActions
         slider_action = QWidgetAction(self)
