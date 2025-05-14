@@ -3,7 +3,8 @@ from typing import List
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QHeaderView, QSizePolicy, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+                               QTableWidgetItem, QVBoxLayout, QWidget,
+                               QCheckBox)
 
 
 class TextFileQueue(QWidget):
@@ -21,14 +22,31 @@ class TextFileQueue(QWidget):
             QSizePolicy.Expanding, QSizePolicy.Expanding)  # Allow table to expand
         self.queue_widget.setWordWrap(True)
 
+        self.auto_forward_checkbox = QCheckBox(
+            "Auto forward to next file upon completion:", self)
+        self.auto_forward_checkbox.setChecked(True)
+
+        self.auto_forward_checkbox.stateChanged.connect(
+            self.__on_auto_forward_checkbox_changed)
+
+        self.auto_export_checkbox = QCheckBox(
+            "Auto export audiobook upon completion:", self)
+        self.auto_export_checkbox.setChecked(True)
+        self.auto_export_checkbox.stateChanged.connect(
+            self.__on_auto_export_checkbox_changed)
+
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.queue_widget)
+        self.layout.addWidget(self.auto_forward_checkbox)
+        self.layout.addWidget(self.auto_export_checkbox)
 
-    def reset_widget(self):
+    def reset_widget(self) -> None:
         self.queue_widget.setRowCount(0)
         self.queue = []
+        self.auto_forward_checkbox.setChecked(True)
+        self.auto_export_checkboxself.auto_forward_checkbox.setChecked(True).setChecked(True)
 
-    def updateView(self, active_file_path: str, file_queue: List[str]):
+    def updateView(self, active_file_path: str, file_queue: List[str]) -> None:
         self.reset_widget()
         self.queue = file_queue
         self.active_path = active_file_path
@@ -50,19 +68,27 @@ class TextFileQueue(QWidget):
             if (file_path == active_file_path):
                 self.__set_text_file_row_active(index)
 
-    def get_audiobook_subdirectory(self):
-
+    def get_audiobook_subdirectory(self) -> str:
         common_prefix = self.__extract_common_prefix(self.queue)
-        print("get_audiobook_subdirectory common_prefix={}, active_path={}\n".format(
-            common_prefix, self.active_path))
         return self.__strip_extension(os.path.relpath(self.active_path, common_prefix))
 
-    def get_next_file_path(self):
+    def get_next_file_path(self) -> None | str:
+        if not self.auto_forward_checkbox.isChecked():
+            return None
         index = self.queue.index(self.active_path)
         if index < len(self.queue) - 1:
             return self.queue[index + 1]
         else:
             return None  # x is the last element
+
+    def is_auto_export_audiobook_on(self) -> bool:
+        returnself.auto_export_checkbox.isChecked()
+
+    def __on_auto_forward_checkbox_changed(self, state):
+        pass
+
+    def __on_auto_export_checkbox_changed(self, state):
+        pass
 
     def __add_text_file_queue_item(self, filePath, index):
         self.queue_widget.blockSignals(True)
@@ -79,15 +105,22 @@ class TextFileQueue(QWidget):
             queueItem.setBackground(Qt.green)
         self.queue_widget.blockSignals(False)
 
-    def __extract_relative_paths_for_display(self, path_list):
-        common_prefix = os.path.commonprefix(path_list)
+    def __extract_relative_paths_for_display(self, path_list) -> List[str]:
+        if not path_list:
+            return []
+        # if len(path_list) == 1:
+        #     return [os.path.relpath(path_list[0], os.path.dirname(path_list[0]))]
+        common_prefix = self.__extract_common_prefix(path_list)
         return [os.path.relpath(path, common_prefix) for path in path_list]
 
-    def __extract_common_prefix(self, path_list):
+    def __extract_common_prefix(self, path_list) -> str:
+        if not path_list:
+            return ''
         folder_path_list = [os.path.split(e)[0] for e in path_list]
         if len(path_list) == 1:
             return folder_path_list[0]
-        return os.path.commonprefix(folder_path_list)
+        common_prefix = os.path.commonpath(folder_path_list)
+        return common_prefix
 
     def __strip_extension(self, filename):
         return os.path.splitext(filename)[0]
